@@ -1,0 +1,587 @@
+---
+output: 
+  stevetemplates::syllabus:
+    latex_engine: xelatex
+    dev: cairo_pdf
+geometry: margin=1in
+
+title: "POLS 146-01: Latin American Politics"
+author: Dr. Sergio Béjar-López
+date: "Fall 2022"
+
+email: "sergio.bejar@sjsu.edu"
+web: "sergiobejar.mx./teaching"
+officehours: "T 4:30-5:30 p.m. & Th 12:00 - 1:00 p.m. (Zoom)"
+office: "Clark Hall 453"
+classroom: "Dudley Moorehead Hall 160"
+classhours: "TTh 1:30-2:45 p.m."
+
+fontfamily: mathpazo
+fontsize: 11pt
+header-includes:
+   - \linespread{1.05}
+---
+```{r setup, include=FALSE}
+# knitr::opts_chunk$set(cache=FALSE, dev='svglite')
+knitr::opts_chunk$set(cache=F,
+                      fig.path = 'figs/',
+                      cache.path='cache/',
+                      warning=F,
+                      message=F)
+
+knitr::opts_chunk$set(
+                  fig.process = function(x) {
+                      x2 = sub('-\\d+([.][a-z]+)$', '\\1', x)
+                      if (file.rename(x, x2)) x2 else x
+                      }
+                  )
+
+
+advdate <- function(obj, adv) {
+ tmon <- obj + 7*(adv-1)
+ tfri <- obj + 4 + 7*(adv-1)
+ tmon <- format(tmon, format="%m/%d")
+ tfri <- format(tfri, format="%m/%d")
+ zadv <- sprintf("%02d", adv)
+ tmp <- paste("Week ",zadv,sep='',", ", tmon," - ",tfri)
+ return(tmp)
+}
+
+options(scipen=999)
+library(tidyverse)
+library(stevemisc)
+#library(ggpmisc)
+#library(anonymizer)
+# library(ggcal)
+#library(stringr)
+#library(kfigr)
+#library(broom)
+library(lubridate)
+
+
+
+# library(RefManageR)
+# library(knitcitations)
+# library(rcrossref)
+#bib <- ReadBib("~/Dropbox/master.bib")
+#myopts <- BibOptions(bib.style = "authoryear", style="latex", first.inits=FALSE, max.names = 20)
+
+# Create a calendar for your syllabus ----
+# Source: http://svmiller.com/blog/2020/08/a-ggplot-calendar-for-your-semester/
+
+# 1) what is the first Monday of the semester?
+# Any number of ways to identify dates in R, but we'll use {lubridate} and the ymd() function here.
+# Format: YYYYMMDD. In this example, 4 January 2021.
+
+mon <- ymd(20220822)
+
+# What are some dates you won't be here? In this example, I had a conference on 7 January 2021.
+# Spring Break was 15 March 2021 to 19 March 2021.
+not_here_dates <- c(
+  # SPSA 2021,
+  #ymd(20210107),
+  # Spring Break
+  seq(ymd(20221122),ymd(20221124), by=1))
+
+# You can adjust this as you see fit. Basically: add assignment types (e.g. papers, quizzes).
+# My intro class was fairly simple: just exams.
+exam_dates <- c(ymd(20221006), ymd(20221214))
+
+# Discussion boards dates
+db_dates <- c(ymd(20220901),
+              ymd(20220915),
+              ymd(20220922),
+              ymd(20221013),
+              ymd(20221021),
+              ymd(20221110),
+              ymd(20221117))
+
+# Quiz
+
+quiz_dates <- c(ymd(20220825),
+                ymd(20220908),
+                ymd(20220929),
+                ymd(20221027),
+                ymd(20221113))
+
+# Group Proyects 
+
+gp_dates <- c(ymd(20220927),
+              ymd(20221020),
+              ymd(20221201))
+
+# What are the full dates of the semester? Here, I'll exclude exam week as I like to do.
+# In this case: 6 January to 23 April
+semester_dates <- seq(ymd(20220822), ymd(20221206), by=1)
+
+# Custom function for treating the first day of the month as the first week 
+# of the month up until the first Sunday (unless Sunday was the start of the month)
+wom <- function(date) {
+    first <- wday(as.Date(paste(year(date),month(date),1,sep="-")))
+    return((mday(date)+(first-2)) %/% 7+1)
+  }
+
+# Create a data frame of dates, assign to Cal
+tibble(date = seq(ymd(20220801), ymd(20221231), by=1))  %>%
+  mutate(mon = lubridate::month(date, label=T, abbr=F), # get month label
+         wkdy = weekdays(date, abbreviate=T), # get weekday label
+         wkdy = fct_relevel(wkdy, "Sun", "Mon", "Tue", "Wed", "Thu","Fri","Sat"), # make sure Sunday comes first
+         semester = ifelse(date %in% semester_dates, 1, 0), # is date part of the semester?
+         exams = ifelse(date %in% exam_dates, 1, 0), # is it an exam?
+         not_here = ifelse(date %in% not_here_dates, 1, 0), # is it a day off?
+         db = ifelse(date %in% db_dates, 1, 0),
+         quiz = ifelse(date %in% quiz_dates, 1, 0),
+         gp = ifelse(date %in% gp_dates, 1, 0),
+         day = lubridate::mday(date), # get day of month to add later as a label
+         # Below: our custom wom() function
+         week = wom(date)) -> Cal
+
+# Create a category variable, for filling.
+# I can probably make this a case_when(), but this will work.
+
+Cal %>%
+  mutate(category = NA,
+         category = ifelse(semester == 1, "Semester", category),
+         category = ifelse(semester == 1 & wkdy %in% c("Tue", "Thu"), "Class Day", category),
+         category = ifelse(exams == 1, "Exams", category),
+         category = ifelse(db == 1, "Discussion Board Due", category),
+         category = ifelse(quiz ==1, "Quiz Due", category),
+         category = ifelse(gp == 1, "Group Proyect Due", category),
+         category = ifelse(is.na(category) | (semester == 1 & not_here == 1), "NA", category)) -> Cal 
+
+Cal %>% 
+  ggplot(.,aes(wkdy, week)) +
+  # custom theme stuff below
+  # theme_steve_web() + 
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank()) +
+  # geom_tile and facet_wrap will do all the heavy lifting
+  geom_tile(alpha=0.8, aes(fill=category), color="black", size=.45) +
+  facet_wrap(~mon, scales="free", ncol=3) +
+  # fill in tiles to make it look more "calendary" (sic)
+  geom_text(aes(label=day),family="Open Sans") +
+  # put your y-axis down, flip it, and reverse it
+  scale_y_reverse(breaks=NULL) +
+  # manually fill scale colors to something you like...
+  scale_fill_manual(values=c("Class Day"="steelblue", 
+                             "Semester"="lightsteelblue",
+                             "Discussion Board Due" = "lightpink2",
+                             "Group Proyect Due" = "chocolate3",
+                             "Quiz Due" = "khaki2",
+                             "NA" = "white", # I like these whited out...
+                             "Exams"="indianred4"),
+                    #... but also suppress a label for a non-class semester day
+                    breaks=c("Class Day","Exams", "Discussion Board Due", "Group Proyect Due", "Quiz Due")) +
+  labs(fill = "", x="", y="",
+       caption = "Notable dates: Thanksgiving Break (23-27 November)")  -> class_cal
+
+```
+
+
+# Catalog Course Description
+
+Survey of the political systems of Latin American countries. Places Latin American countries in a global perspective. Major themes include: civil-military relations, democratization, economic development, social movements, and foreign
+relations both within and outside Latin America.
+
+# Detailed Course Description
+
+Latin American nations are endowed with enormous natural wealth. Yet, at
+the same time, they suffer from persistent poverty, income inequality, and low
+levels of political development. They have endured colonialism, authoritarianism, populism, and a variety of projects for economic development. Events in
+the region continue to raise questions about the effects of political institutions
+like democracy, presidentialism, and political parties; the role of the state in
+economic development; and how we think about democracy and its benefits in
+the region.
+
+# Course Format
+
+This is a **hybrid** class with class meeting times in person as well as asynchronous modules. We will meet in person every Tuesday 1:30-2:45pm in DMH 160. The plan is to roughly have 50% of the classes in-person. The rest of the classes (i.e. 50%) will be asynchronous material. The class schedule below contains specific information about the schedule.
+
+As mentioned above, a number of classes, assignments and, exams will be conducted over the Internet (given the hybrid nature of the course). Students are responsible for their own access to the Internet and computer resources.
+
+# Canvas Course Page 
+
+Course materials such as syllabus, readings, assignment instructions, etc. can be found on [Canvas Learning Management System course website](http://sjsu.instructure.com). 
+
+You are responsible for regularly accessing the Canvas course website to read any required materials, complete assignments, and check announcements. Make sure that Canvas has your current email address. For help with using Canvas see [Canvas Student Resources page](https://www.sjsu.edu/ecampus/software- tools/teaching-tools/canvas/student-resources/index.php). For technical problems with Canvas please contact [eCampus](https://www.sjsu.edu/ecampus/how-we-can-help/php).
+
+# Department of Political Science Learning Outcomes (PSPLO)
+
+**PSPLO 1:** Breadth: Students should possess a broad knowledge of the theory and methods of the various branches of the discipline.
+
+**PSPLO 2:** Application and Disciplinary Methods: Students should be able to formulate research questions, engage in systematic literature searches using primary and secondary sources, evaluate research studies, and critically analyze and interpret influential political texts. Students should be able to apply these techniques to identify, understand, and analyze domestic and international political issues and organizations.
+
+**PSPLO 3** Communication Skills: Students should master basic competencies in oral and written communication skills and be able to apply these skills in the context of political science. This means communicating effectively about politics and/or public administration, public policy, and law.
+
+**PSPLO 4:** Citizenship: Students should acquire an understanding of the role of the citizen in local, state, national, and global contexts and appreciate the importance of lifelong participation in political processes.
+
+# Course Learning Outcomes (CLOs)
+
+In addition, students will be able to: 
+
+
+**CLO1:** Gain a solid understanding of different theoretical frameworks used to an-
+analyze Latin America. This course should make it easier for you to read the
+newspaper or watch the news, and think critically about current events in the region (Lectures, readings, discussion boards, quizzes, exam).
+
+**CLO2:** Learn about the history and political dynamics during recent history for
+selected Latin American countries—namely, Argentina, Mexico, Venezuela,
+and Brazil (Lectures, readings, discussion boards, quizzes).
+
+**CLO3:** Strengthen your critical thinking skills by applying social science methodological tools and causal inference. 
+
+**CLO4:** Students will learn to identify the
+causal claims of authors and to challenge their approaches and assump-
+tions. These are skills you will bring to your other courses, and to your
+life after college (Lectures, readings).
+
+
+
+# Faculty Webpage and MYSJSU Communication
+
+I will post announcements on Canvas on a regular basis. They will appear on your dashboard when you log in and/or will be sent to you directly through your preferred method of notification from Canvas. Please make sure to check them regularly, as they will contain any important information about upcoming projects or class concerns. 
+
+In this course we will use the CONVERSATIONS feature on the help corner (located in navigation links) to send email for private messages. You can either check your messages in the Canvas system or set your notifications to your preferred method of contact. Please check your messages regularly. 
+
+I receive many emails from students everyday, and I try to respond to all of them in a timely manner.  An email is a formal communication between you and your professor, and it thus should be addressed properly.  For my students, I am Dr. Bejar or Dr. Bejar-Lopez.  Please keep this in mind when you send me an email.  **I will not respond to emails that are not properly addressed.**
+
+# Creating an Environment of Mutual Respect
+
+This class is a partnership between you, your classmates and your professor. Together, we will build a supportive, respective, and productive environment to learn and to explore challenging questions about politics in a comparative perspective. Building this kind of environment requires mutual respect.
+
+What do I expect from you to create an environment of mutual respect? I expect you to complete the readings and come to class prepared.  I also expect professional behavior in the class and to remain engaged throughout the semester.  Lack of interest or engagement is likely to be reflected in your grade.  
+
+What can you expect from me? You can expect me to be tirelessly enthusiastic and to work hard for you, both in this semester and in future semesters if needed. I encourage all of you to stop by my office hours (in person or via Zoom), even if you don’t have a question and just would like to chat about the class, life after SJSU or life in general. 
+
+
+# Course Communication and Help
+
+If you have questions or need help with class, don’t hesitate to talk to me. Here are several ways to contact me:
+
+**Office Hours:** This is the best way to communicate with me. This semester, I have both in person and online office hours. **In-person office hours** will be held on Tuesdays from 4:30-5:30 pm. **Online office hours** will be on Thursdays from 12:00 to 1:00 pm.  The link to my Zoom office hours will be posted on the Canvas webpage of the course. 
+
+When you click on the link for online office hours, you will be placed in a virtual waiting room. If I am not already talking to another student, you will be immediately allowed into the meeting. If I am in a meeting with another student, you will be in the waiting room until I am done and can let you into the “office.”
+
+If neither of my office hours work for you, please let me know and we will figure out a time to meet. 
+
+**Email:** I am usually quick to respond to student e-mails. You should expect a response for me within 24hrs **except on weekends and holidays.** While I do my best to answer most questions vial email, some student e-mails tend to do several things that try my patience. Please note that I will not respond to emails for the following reasons:
+
+1. The student could answer his/her own inquiry by reading the syllabus.
+2. The student missed assignments or exams. I do not need to know the exact reason for a missed assignment or exam. Students with excusable reasons are responsible for giving me a note *in hard copy* that documents the reason for the missed class. 
+3. The student wants to know what topics have been covered in class. The answer is always "you missed what was on the syllabus."
+4. The student is protesting a grade without reference to specific points of objection. These e-mails tend to be expressive utility on the part of the student and do not require a response from me. Students interested in improving their knowledge of material should see me during office hours.
+6. The student is requesting an extension on an assignment for which the syllabus already established the deadline. The answer is always "no".
+7. The student is ["grade grubbing"](https://www.math.uh.edu/~tomforde/GradeGrubbing.html) or asking to round up a grade. The answer is always "no".
+8. The student is asking for an extra credit opportunity, a request that amounts to more grading for the professor. The answer is "no".
+9. The student emails during the weekend. 
+
+
+**Q&A Discussion Thread:** I will keep a Q&A discussion board on canvas for the entirety of the semester. Any questions  that might also be of concern to the entire class should be posted there (nothing confidential please). For example, questions about paper format, structure/requirements of different assignments, deadlines, and similar, would be beneficial to other students as well and should be posted on the Q&A tread. I will check the Q&A discussion board several times per week (on weekdays). If you know the answer to a question posed by another student, feel free to reply.
+
+# Course Workload Expectations: Succeeding in a Four-Unit Course
+
+SJSU classes are designed such that in order to be successful, it is expected
+that students will spend a minimum of forty-five hours for each unit of credit
+(normally three hours per unit per week), including preparing for class, partic-
+ipating in course activities, completing assignments, and so on. Because this
+is a four-unit course, you can expect to spend a minimum of nine hours per
+week, in addition to time spent in class, on scheduled tutorials, assignments, or
+activities. This additional unit will allow for more in-depth investigation and
+engagement with course topics. Careful time management will help you keep
+up with readings and assignments and enable you to be successful in all of your
+courses. More details about student workload can be found in [University Policy
+S12-3](http://www.sjsu.edu/senate/docs/S12-3.pdf). 
+
+
+# Course Readings
+
+We are living through a difficult time as we face the effects of the COVID-19 pandemic. As
+a consequence, I designed a class that doesn’t require students to
+purchase a textbook. 
+
+All the required readings will be available in the CANVAS page of our class.
+
+In addition, I expect students to regularly check the following websites for current news on
+Latin America:
+
+- [The Guardian](https://www.theguardian.com/world/2002/feb/05/world-news-guide-latin-america)
+
+- [The New York Times](https://www.nytimes.com/section/world/americas)
+
+- [BBC](https://www.bbc.com/news/world/latin_america)
+
+- [The Economist](https://www.economist.com/the-americas)
+
+- [CNN](https://edition.cnn.com/americas)
+ 
+
+# Description of Assignments and Weights
+
+**Discussion Boards (20%):**  Students will participate in 7 graded discussion boards (there will be other non-graded boards). In each graded discussion you will be expected to make 3 posts: your initial post (minimum 150 words) and replies to at least two of your classmates (minimum 50 words each).  
+
+The nature of these posts varies.  But you should expect to get questions on the documentaries and short videos that you are required to watch as well as on the newspaper and magazine articles that are part of your coursework.  Your postings should be well written and clearly address the issues being discussed. I expect each writing assignment to have: (1) A clear introduction that addresses directly the question posed by the instructor; (2) A body of factual examples that support your thesis; these examples may be drawn from either the assigned readings or footnoted sources researched independently by the student; (3) Appropriate source citations; plagiarized threads will be penalized. (4) A succinct concluding paragraph. Your responses must be posted by the deadline specified on Canvas. .
+
+If I have some concerns or comments about your thread, I will post a response. My comments are intended to help you improve your threads. If you respond to my comments, you may earn additional points. In order to earn a perfect score, you generally have to post an excellent thread the first time around and by the assigned deadline. In addition, you must respond to the threads of at least two other students 24 hrs. after the deadline.
+
+**Group Projects (35%):** Once the final roster of the class is available, I will randomly assign you to a working group (or team).  As a team, you will craft three (3) short essays and make a short presentation to the class.  The topics are below.  
+
+1. **Country Profile:** 4-7 pages with info-graphics and references. Each group will be assigned a country from the region. You  and your group will present
+a country profile, both orally and on-paper – consisting of a short narrative and key economic and human welfare statistics including 10-year trends. The narrative should focus on the country’s modern evolution – the most salient political parties (PRI if studying Mexico, for example), social or political cleavages (agrarian elites versus Evo Morales in Bolivia
+for example, or President Kirchner versus the Central Bank in Argentina) and
+major current events (The Olympics and their backlash in Brazil, or the FARC
+negotiations in Colombia). **Due September, 27**
+
+2. **Current Events:** With your team, present the most salient political or economic event preoccupying the public, or government, currently. This might be a regional dispute, an anti-
+terrorist operation, an indigenous group’s protest, or an economic crisis. Your
+job will be to frame the problem, isolate key stakeholders/actors and their 3
+positions, and then analyze the problem through a context-sensitive lens that
+considers the local political economy or political history. You can draw from
+class resources, though you may need to read ahead, or outside of class, in order
+to best grapple with the analysis. **Due October, 20**
+
+3. **Policy Memo:** 6-8 pages with references. Your policy paper will
+build on the previous assignments, culminating in a policy position paper that
+explicates your current government’s approach to key overarching themes: a)
+Foreign Relations – regionally, with China, and with the United States b) Eco-
+nomic Growth c) Security – with a domestic focus d) Human Rights and e)
+Rural Development / Inclusive Prosperity. **Due December 1**.
+
+**Quizzes (15%):** There will be 5 online quizzes.  Each of them will ask questions about the video lecture presentation(s) and readings. Success in these quizzes is simple: watch the lectures, take notes, pay attention and review your notes before the quizz.  See course calendar below for due dates.  *Late quizzes –even a second late- will receive a zero.*
+
+**Exams (30%):**  These exams will not be cumulative and are likely to include a combination of multiple choice, short answer and essay questions. See course calendar below for dates. Both exams will be administered **in-person**. 
+
+**Participation (10%):** Students are expected to come to class having read the assigned readings, ready to discuss them, and prepared to participate in class activities. Class meetings will regularly include discussions and various group or individual activities (such as completing a short write-up related to that day’s topic, finding a solution to an issue, researching contemporary examples of an issue discussed in class, and similar). Students may be called by name to address concepts from the readings.
+
+Your participation grade will be based on the frequency and quality of your contributions to class discussions and participation in and completion of in-class activities.
+
+
+# Policy on Late Work
+
+**Discussion board (initial posts):** initial posts can be submitted late but will incur a 25% penalty for each started 24-hour period (starting at 5:01pm on the day they are due). This means that you have 72 hrs. before your response receives automatically a 0. 
+
+**Discussion board (replies to classmates):** no late replies to classmates are allowed. The thread will close at 5:01pm on the day replies is due and no further submissions will be allowed.
+
+**Group Policy Briefs:** your briefs will be penalized 25% for each started 24-hour period (starting at 5:01pm). 
+
+**Exams and quizzes:** exam and quiz make-ups are only given in cases of medical or family emergencies, in accordance with the university’s policy on excused absences. In these cases, you MUST notify me before the exam and proper documentation must be provided.
+
+# The Grading
+
+You may notice that these points add up to 110- there’s **10 extra credit points** built in to the grading scheme! You’re welcome. This is to help cover the occasional misstep that happens to us all a one time or another- computer problems, illness, life interference, etc. One bad week will not doom your grade in this class, though you will need to work hard and consistently throughout the semester to do well. You can calculate your final grade yourself, and convert it to a letter grade using simple math and the letter grade allocation from the student handbook, reprinted below.
+
+# Grading Policies 
+
+The following section of the syllabus will outline the various grading policies associated with the course. I’ll summarize a few here. First, students can expect that the turnaround on exams and the paper should be about 10 days, or thereabouts. Enrollment in this class is capped at 35 and a 10-day turnaround would allow me to average about four exams/papers a day. This is a reasonable workload for me and allows me to offer comprehensive feedback where appropriate.
+
+# Grading Scale 
+
+| Grade | Percentage |
+| :----| :-------:  |
+| A plus| 98-100% |
+| A | 94-97.9% |
+| A minus| 90-93.9% |
+| B plus | 87-89.9%|
+| B | 84-86.9% |
+| B minus| 80-83.9% |
+| C plus | 77-79.9%|
+| C | 74-76.9% |
+| C minus| 70-73.9% |
+| D plus | 67-69.9%|
+| D | 64-66.9% |
+| D minus| 60-63.9% |
+| F | 0-59.9% |
+
+# Public Sharing of Instructor Material
+
+Students are prohibited from distributing, sharing, or posting class lectures, slides, exams, or any other instructional materials. Materials created by the instructor for the course (syllabi, lectures and lecture notes, presentations, exams, etc.) are copyrighted by the instructor. [University policy S12-7](https://www.sjsu.edu/senate/docs/S12-7.pdf) is
+in place to protect the privacy of students in the course, as well as to maintain academic integrity through reducing the instances of cheating. Students who record, distribute, or post these materials will be referred to the Student Conduct and Ethical Development office. Unauthorized recording may violate university and state law. It is the responsibility of students that require special accommodations or assistive technology due to a disability to notify the instructor.
+
+# Academic Dishonesty
+
+Students who are suspected of cheating during an exam/quiz/assignment will be referred to the Student Conduct and Ethical Development office and depending on the severity of the conduct, will receive an  F in the course. Grade Forgiveness does not apply to courses for which the original grade was the result of a finding of academic dishonesty.
+
+# Cell Phones, Pagers, Laptops, PDAs
+
+Unless Student Disabilities Services informs me that such a device is a necessary accommodation for a student with disabilities, all laptops, tablets, cell phones, and PDAs are to be put away during class (both in lecture and during exams). There are two reasons for this. One, you are on Facebook or Instagram anyway when you are using them during class. Both can wait. Two, laptops are---and I must emphasize this---[*terrible* learning devices](http://svmiller.com/blog/2014/09/taking-good-notes/). Likewise, keep your phone or pager (do people still use those?) in your bag or pocket during class. The professor reserves the right to embarrass the student for not having a phone on "vibrate" during class. If not, the ringtone better be something good. *This is a legacy part of the syllabus that is here in the chance event that we meet in-person and is not applicable for the online component of the class.* However, you and your phone should probably be on mute during an online lecture.
+
+# University Policies 
+
+Per [University Policy S16-9](http://www.sjsu.edu/senate/docs/S16-9.pdf), relevant university
+policies concerning all courses, such as student responsibilities, academic integrity,
+accommodations, dropping and adding, consent for recording of class, etc., and available student services (e.g. learning assistance, counseling, and other resources) are listed on [University’s Syllabus Information web page](https://www.sjsu.edu/curriculum/courses/syllabus-info.php), which
+is hosted by the Office of Undergraduate Education. Make sure to visit this page to review and be aware of these university policies and resources.
+
+# Policy on Children in Class (adopted from Dr. Melissa Cheyney's Syllabus)
+
+Currently, the university does not have a formal policy on children in the classroom. The policy described here is thus, a reflection of my own beliefs and commitments to students who happen to also be parents.
+
+1. Babies are welcome in class as often as is necessary to support feeding relationship (breast-feeding or via bottle). Because not all women can pump sufficient milk, and not all babies will take a bottle reliably, I never want students to feel like they have to choose between feeding their baby and continuing their education. You and your baby are welcome in class anytime.
+
+2. For older children and babies, I understand that minor illnesses and unforeseen disruptions in childcare often put parents in the position of having to chose between missing class to stay home with a child and leaving them with someone you or the child does not feel
+comfortable with. While this is not meant to be a long-term childcare solution, occasionally
+bringing a child to class in order to cover gaps in care is perfectly acceptable.
+
+3. I ask that all students work with me to create a welcoming environment that is respectful
+of all forms of diversity, including diversity in parenting status.
+
+4. In all cases where babies and children come to class, I ask that vou sit close to the door so that if your little one needs special attention and is disrupting learning for other students, you may step outside until their need has been met. Non-parents in the class, please reserve seats near the door for your parenting classmates.
+
+5. Finally, I understand that often the largest barrier to completing your coursework once
+you become a parent is the tiredness many parents feel in the evening once children have
+finally gone to sleep. The struggles of balancing school and childcare are exhausting! I
+hope that you will feel comfortable disclosing your student-parent status to me. This is the
+first step in me being able to accommodate any special needs that arise. While I maintain
+the same high expectations for all students in my classes regardless of parenting status,
+am happy to problem solve with you in a way that makes you feel supported as you strive
+for school-parenting balance.
+\newpage
+
+# Class Schedule
+
+Students must read the following before Tuesday's class session.  Important: class readings are subject to change, contingent on mitigating circumstances and the progress we make as a class.  Students are encouraged to attend lectures and check the course website for updates. 
+
+```{r calendar, echo=F, eval=T, fig.cap="A Calendar for POLS 2-01 (Introduction to Comparative Politics, Fall 2022)", results="hide",  warning=F, fig.width=11, fig.height=7}
+class_cal
+```
+## `r advdate(mon, 1)`: Syllabus Day & Getting to Know Us
+
+Read the following 2 short blogs for Thursday:.
+  
+  - [Taking Good Notes](http://svmiller.com/blog/2014/09/taking-good-notes/)
+  - [Fun with Attendance and Grades (i.e. Students Should Attend Class)](http://svmiller.com/blog/2016/05/fun-with-attendance-grades/)
+    
+**No meeting in-person. But check the CANVAS calendar for assignment**
+
+## `r advdate(mon, 2)`: The Latin American Puzzle 
+
+**Read:** 
+
+- SGS, Chapter 12
+
+- SGS, Chapter 13
+
+- [Latin America and COVID](https://foreignpolicy.com/2020/08/03/latin-america-coronavirus-aid-covid-assistance/)
+
+- [Lupu and Carnes](https://www.washingtonpost.com/news/monkey-cage/wp/2014/04/08/the-rich-are-running-latin-america-and-why-that-matters/?arc404=true)
+
+
+##  `r advdate(mon, 3)`: Legacies of Colonialism
+
+**Read:** 
+
+- Daron Acemoglu and James Robinson. 2012. Why Nations Fail: The Origins of Power, Prosperity, and Poverty. New York: Crown Business. pp. 7-44.
+
+- Eduardo Galeano. 1973/1997. Open Veins of Latin America: Five Centuries of the Pillage of a Continent, 25th Anniversary Edition. New York: Monthly Review Press. pp. 1-8.
+
+
+##  `r advdate(mon, 4)`: Import Substitution Industrialization, Populism and Democratic Breakdown
+
+**Read:** 
+
+- Kingstone – pp. 28-54.
+
+- Kirk Hawkins. 2010. Venezuela’s Chavismo and Populism in Comparative Perspective. New York: Cambridge University Press. pp. 29-43.
+
+- Ruth Berins Collier and David Collier. 1991. Shaping the Political Arena: Critical Junctures, the Labor Movement, and Regime Dynamics in Latin America. Princeton: Princeton University Press. pp. 484-497, 721-742.
+
+
+##  `r advdate(mon, 5)`: Military Dictatorships 
+
+**Read:** 
+
+- Hector Schamis. 1991. “Reconceptualizing Latin American Authoritari-
+anism in the 1970s: From Bureaucratic Authoritarianism to Neoconser-
+vatism.” Comparative Politics, 23(2): 201-220.
+
+- O’Donnell, Guillermo. ”One Theoretical and Historical Background to the
+Study of the Bureaucratic-Authoritarian State.”
+
+- [Life Under Pinochet](https://www.amnesty.org/en/latest/news/2013/09/life-under-pinochet-they-were-taking-turns-electrocute-us-one-after-other/)
+
+
+
+##  `r advdate(mon, 6)`: Group Presentations of Country Profiles
+
+##  `r advdate(mon, 7)`: Review and First Exam (In-Person)
+
+##  `r advdate(mon, 8)`: Democratic Transitions and Consolidation
+
+**Read:** 
+
+- Juan J. Linz and Alfred Stepan. 1996. Problems of Democratic Transition and Consolidation: Southern Europe, South America, and Post-Communist Europe. Baltimore: Johns Hopkins University Press. pp. 190-204.
+
+- Steven Levitsky. 2005. “Argentina: Democratic Survival amidst Economic Failure,” In The Third Wave of Democratization in Latin America: Advances and Setbacks, eds. Frances Hagopian and Scott Mainwaring. New York: Cambridge University Press. pp. 63-89.
+
+##  `r advdate(mon, 9)`: Neoliberal Reform and its Consequences
+
+**Read:**
+
+- Williamson, John. 2006. “What Washington Means by Policy Reform.”
+In Peter R. Kingstone, ed. Readings in Latin American Politics, Houghton
+Mifflin: Boston, pp. 83-89.
+
+- Kathleen Staudt. 2018. “How NAFTA Has Changed Mexico.” Current
+History 117(796): 43-48.
+
+- Watch [Maquilopolis](https://www.youtube.com/watch?v=WUQgFzkE3i0)
+
+##  `r advdate(mon, 10)`:  Consequences of Neoliberalism in Mexico: Violence, Crime, Populism, the Left and AMLO 
+
+**Read:** 
+
+- Beatriz Magaloni and Zaira Razu. 2016. “Mexico in the Grip of Violence.”
+Current History 115(778): 57-62.
+
+- Max Fisher and Amanda Taub. ”’The Social Contract is Broken’: In-
+equality Becomes Deadly in Mexico.” New York Times. September 30,
+2017.
+
+- Kenneth Greene and Mariano S ́anchez-Talanquer. 2018. “Mexico’s Party
+System under Stress.” Journal of Democracy 29(4): 31-42.
+
+- Jon Lee Anderson. “A New Revolution in Mexico.” New Yorker. June 25,
+2018.
+
+- Shannon O’Neil. “Lopez Obrador is Dismantling Democracy in Mexico.” Bloomberg. March 11, 2019.
+
+##  `r advdate(mon, 11)`: Party System Collapse in Venezuela and the Rise of Chávez
+
+**Read:** 
+
+- Noam Lupu. 2014. “Brand Dilution and the Breakdown of Political Parties in Latin America.” World Politics 66(4): 561-602.
+
+- Harry Vanden and Gary Prevost. 2012. Politics of Latin America: The
+Power Game, 4th Edition. New York: Oxford University Press. pp. 459-479.
+
+##  `r advdate(mon, 12)`: Venezuela: Polarization and the Future of Chavísmo
+
+**Read:** 
+
+- Planet Money podcast #731: “How Venezuela Imploded.”
+
+-  David Smilde. 2015. “The End of Chavismo?” Current History 114(769): 49-55.
+
+- Michael McCarthy. 2017. “Venezuela’s Manmade Disaster.” Current History
+116(787): 61-67.
+
+- William Finnegan. “Venezuela, a Failing State.” New Yorker. November 14, 2016.
+
+## `r advdate(mon, 13)`: The Resurgence of the Right in Brazil
+
+**Read:**
+
+- Wendy Hunter and Timothy Power. 2019. “Bolsonaro and Brazil’s Illiberal Backlash.” Journal of Democracy 30(1): 68-82.
+
+- Lindsay Mayka and Amy Erica Smith. “Could Corruption Investigations Undermine Democracy in Latin America?” Vox. May 17, 2018.
+
+##  `r advdate(mon, 14)`: Thanksgiving Week
+
+##  `r advdate(mon, 15)`: Comparing Populism in the U.S. and Latin America
+
+**Read:**
+
+Robert Kaufman and Stephan Haggard. 2019. “Democratic Decline in the United States: What Can We Learn from Middle-Income Backsliding?” Perspectives on Politics 17(2): 417-432.
+
+##  `r advdate(mon, 16)`: Final Review 
+
+##  `r advdate(mon, 17)`: Final Exam: Wednesday, December 14th (ONLINE)
